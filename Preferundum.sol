@@ -11,17 +11,19 @@ contract Preferundum is Ownable{
 
     struct Governance {
         string question ; // Question for the governance
-        string[] subject ; // Array of subject
+        uint tresorery ; // 0 there is not, 1 there is
+        string[] subject ; // Array of subject. If tresorery, then the first is the tresorery subject
         string[][]  possibilities ; // Array of possibilities
+        uint[][] tresorerypossibilities; // one price for one possibilities
         uint id; // id of the question  
         uint date ; //  date when the proposition was ask
-        address  ownerr;
+        address payable ownerr;
     }
 
 
     struct Response {
         uint id; // the response for the proposition with id
-        uint[] percentagesubject; // allocation of token about subject
+        uint[] percentagesubject; // allocation of token about subject - the one is treserorey if there is
         uint[][] percentage; // allocation of token for each proposition
         uint nbtoken;
         address payable  addressvote;
@@ -29,6 +31,7 @@ contract Preferundum is Ownable{
 
     struct FinalProposition {
         string[]  possibilities ; // Array of possibilities
+        uint[] tresoreryaccount ; 
         uint id; // id of the question  
     }
 
@@ -36,10 +39,10 @@ contract Preferundum is Ownable{
     Response[] public  responses ; 
     bool stopeverything = false; // indicator of if the preferundum and referundum is stopped by the creator
 
-    function proposequestion (string memory _question, string[] memory _subject, string[][] memory _possibilities) public  { // id is the id of the proposal
+    function proposequestion (uint _tresorery, uint[][] memory _tresorerypossibilities, string memory _question, string[] memory _subject, string[][] memory _possibilities) public  { // id is the id of the proposal
          uint _id = governances.length; // numero of the proposition
          uint _date = block.timestamp ; 
-        governances.push(Governance(_question, _subject, _possibilities , _id , _date, msg.sender));
+        governances.push(Governance(_question,_tresorery, _subject, _possibilities ,_tresorerypossibilities, _id , _date, payable(msg.sender)));
     }
 
     function stopgovernance (uint _id) public returns(bool) {
@@ -59,7 +62,7 @@ contract Preferundum is Ownable{
             for (uint j=0 ; j<_percentagesubject.length ; j++){
                 for (uint i=0; i<_percentage[j].length;i++){
                     goodpercentage = goodpercentage + _percentage[j][i];
-                }
+                }   
             }
 
             for (uint i=0; i<_percentagesubject.length;i++){
@@ -67,6 +70,7 @@ contract Preferundum is Ownable{
             }
             require (goodpercentage == 1*_percentagesubject.length); 
             require (goodpercentagesubject == 1); 
+
             if(block.timestamp - governances[_id].date < ProposalTime){
                  responses.push(Response(_id, _percentagesubject,_percentage, _nbtoken,payable(msg.sender)));
             }
@@ -74,9 +78,10 @@ contract Preferundum is Ownable{
 
     }
 
-    function addpossibilities (string memory _proposition , uint _numbersubject , uint _id) public {
+    function addpossibilities (uint _amount, string memory _proposition , uint _numbersubject , uint _id) public {
         if (stopgovernance(_id)==false){
             governances[_id].possibilities[_numbersubject].push(_proposition);
+            governances[_id].tresorerypossibilities[_numbersubject].push(_amount);
         }
     }
 
@@ -93,21 +98,36 @@ contract Preferundum is Ownable{
         require(block.timestamp - governances[_id].date > ProposalTime);
         uint[][] memory count;      
         string[] memory possibilitieschosen ;
+        uint[] memory possibilitieschosentresorery;
 
-        for (uint i=0 ; i<responses.length ; i++){ // calcul of token for each proposition of each subject
-            if(responses[i].id == _id){
-                for(uint j=0 ; j<responses[i].percentagesubject.length ; j++){
-                    for ( uint k=0 ; k<responses[i].percentage[j].length ; k++){
-                        count[j][k] = count[j][k] + responses[i].percentage[j][k]*responses[i].percentagesubject[j]*responses[i].nbtoken;
-                    }
+        if(governances[_id].tresorery==1){
+            for (uint i=0 ; i<responses.length ; i++){ // calcul of token for each proposition of each subject
+                 if(responses[i].id == _id){
+                      for(uint j=1 ; j<responses[i].percentagesubject.length ; j++){
+                             for ( uint k=0 ; k<responses[i].percentage[j-1].length ; k++){
+                             count[j-1][k] = count[j-1][k] + responses[i].percentage[j-1][k]*responses[i].percentagesubject[j]*responses[i].nbtoken;
+                             }
+                     }
                 }
             }
-
+        }else{
+            for (uint i=0 ; i<responses.length ; i++){ // calcul of token for each proposition of each subject
+                if(responses[i].id == _id){
+                     for(uint j=0 ; j<responses[i].percentagesubject.length ; j++){
+                        for ( uint k=0 ; k<responses[i].percentage[j].length ; k++){
+                            count[j][k] = count[j][k] + responses[i].percentage[j][k]*responses[i].percentagesubject[j]*responses[i].nbtoken;
+                        }
+                    }
+                }           
+            }
         }
+
         uint[] memory numberchoice ; 
+
         for(uint j=0 ; j<responses[j].percentagesubject.length ; j++){
             uint stockmax =0;
-            for (uint k=0 ; k<governances[_id].subject.length; k++){
+
+            for (uint k=0 ; k<governances[_id].possibilities[j].length; k++){
                 if(count[j][k]>stockmax){
                     stockmax = count[j][k];
                 }else{
@@ -118,11 +138,11 @@ contract Preferundum is Ownable{
 
         for(uint i=0 ; i<governances[_id].subject.length ; i++){
             possibilitieschosen[i]=governances[_id].possibilities[i][numberchoice[i]];
+            possibilitieschosentresorery[i] = governances[_id].tresorerypossibilities[i][numberchoice[i]];
         }
 
         getbacktoken(_id);
-        return (FinalProposition(possibilitieschosen,_id));
+        return (FinalProposition(possibilitieschosen,possibilitieschosentresorery ,_id));
     }
-
 
 }

@@ -5,7 +5,6 @@ import "./Preferundum.sol";
 
 contract Referundum is Preferundum {
 
-    uint DecisionTime = 3 days ; // Time where people can answer the question 
     uint RetroactionTime = 10 days ; // Time where people can cancel a vote after the results
     
     struct Vote {
@@ -67,8 +66,25 @@ contract Referundum is Preferundum {
         countcancel[_id] = countcancel[_id] + _nbtoken ;
     }
 
-    function finaldecision (uint _id) public returns(string memory){
+    function acceptbalance(uint _sum) public returns(bool){
+        uint balancecontract ; 
+        for (uint i=0 ; i<responses.length ; i++){
+            balancecontract = balancecontract + responses[i].nbtoken + votes[i].nbtoken ;
+        }
+        return (balancecontract == address(this).balance - _sum);
+    }
+
+    function finaldecision (uint _id) public payable returns(string memory){
         if(results(_id)[1]>countcancel[_id]) {
+            if(governances[_id].tresorery==1){
+                uint sum ;
+                for(uint i=0;i<governances[_id].subject.length;i++){
+                         sum=sum+propositionchosen(_id).tresoreryaccount[i];
+                     }
+                if(acceptbalance(sum)){
+                    governances[_id].ownerr.transfer(sum);
+                }
+            }
             return "Proposition of governance is accepted";
         } else {
             return "Proposition of governance is rejected";
